@@ -15,6 +15,7 @@
 #include <SDL_opengl.h>
 #include <SDL_mixer.h>
 #include <GL\GLU.h>
+#include <freeglut.h>
 #include <SOIL.h>
 
     //Általános headerek
@@ -68,9 +69,12 @@ GLfloat global_ambient_light[] = {0.3, 0.3, 0.3, 1.0};  //globális fény
 GLuint tex_grass;
 GLuint tex_sky;
 GLuint tex_igs_warehouse_1;
+GLuint tex_igs_warehouse_2;
 GLuint tex_igs_truck_small_box;
     // Modell változók
 struct Model test_model;
+struct Model igs_warehouse_1;
+struct Model igs_warehouse_2;
 struct Model test_truck;
 struct Model test_wheel;
     //Tile-ok
@@ -82,6 +86,9 @@ struct Building new_building;
 struct Building buildings[building_limit];
     //Járművek
 struct Vehicle test_vehicle;
+    // Felirat
+char test[50] = "TESZT FELIRAT";
+char text[50];
 /*
 ======================================================================================
     Függvény prototípusok
@@ -97,6 +104,10 @@ void Mouse_Handler();
 void Build_Mode_Handler();
 void Bulldoze_Mode_Handler();
 void Render_Scene();
+void Render_Interface();
+void Render_Bitmap_String(int x, int y, int z, void *font, char *string, float r, float g, float b);
+void Set_2D_Projection();
+void Restore_3D_Projection();
 void Reshape();
 void Close();
 
@@ -112,6 +123,8 @@ int main( int argc, char* args[] )
     Initialize_SDL_Mixer();
     // OpenGL inicializáció ------------------------------------------------------
     Initialize_OpenGL();
+    // GLUT inicializáció
+    glutInit(&argc, args);
     // Textúrák betöltése
     Initialize_Textures();
     // Modellek betöltése
@@ -277,6 +290,13 @@ void Initialize_Textures()
         SOIL_CREATE_NEW_ID,
         SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
     );
+    tex_igs_warehouse_2 = SOIL_load_OGL_texture
+	(
+        "textures/igs_warehouse_2.png",
+        SOIL_LOAD_AUTO,
+        SOIL_CREATE_NEW_ID,
+        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+    );
     tex_igs_truck_small_box = SOIL_load_OGL_texture
 	(
         "textures/igs_truck_small_box.png",
@@ -295,6 +315,8 @@ void Initialize_Textures()
 void Initialize_Models()
 {
     Load_Model("models/igs_warehouse_1.obj", &test_model, tex_igs_warehouse_1);
+    Load_Model("models/igs_warehouse_1.obj", &igs_warehouse_1, tex_igs_warehouse_1);
+    Load_Model("models/igs_warehouse_2.obj", &igs_warehouse_2, tex_igs_warehouse_2);
     Load_Model("models/igs_truck_small_box.obj", &test_truck, tex_igs_truck_small_box);
     Load_Model("models/igs_truck_small_wheel.obj", &test_wheel, tex_igs_truck_small_box);
 }
@@ -554,9 +576,97 @@ void Render_Scene()
         //Draw_Full_Grid(map_width, map_length);
         if(game_mode == build)
             Draw_Local_Grid(v_cursor);
+
+        // Interface kirajzolása
+        Render_Interface();
+
     glPopMatrix();
     // Képernyõ frissítés
     SDL_GL_SwapWindow(gWindow);
+}
+
+void Render_Interface()
+{
+    // 2D-s projekció beállítása
+    Set_2D_Projection();
+
+    // Fények, textúra kikapcsolása
+    glDisable(GL_LIGHTING);
+    glBindTexture(GL_TEXTURE_2D,0);
+
+    // Teszt felirat kiírása
+    //Render_Bitmap_String(10, 30, 0, GLUT_BITMAP_HELVETICA_18, test, 1, 0, 0);
+
+    // Mód kiírása
+    strncpy(text, "MODE: ", 50);
+    Render_Bitmap_String(10, 30, 0, GLUT_BITMAP_HELVETICA_18, text, 0, 0, 0);
+    switch(game_mode)
+    {
+        case normal:
+            strncpy(text, "SIMULATION", 50);
+            Render_Bitmap_String(75, 30, 0, GLUT_BITMAP_HELVETICA_18, text, 0, 0, 0);
+            break;
+
+        // Építő mód
+        case build:
+            strncpy(text, "BUILD", 50);
+            Render_Bitmap_String(75, 30, 0, GLUT_BITMAP_HELVETICA_18, text, 1, 1, 0);
+            break;
+
+        // Bontó mód
+        case bulldoze:
+            strncpy(text, "BULLDOZE", 50);
+            Render_Bitmap_String(75, 30, 0, GLUT_BITMAP_HELVETICA_18, text, 1, 0, 0);
+            break;
+    }
+
+
+
+    // Fények, textúra visszakapcsolása
+    glEnable(GL_LIGHTING);
+
+    // 3D-s projekció visszaállítása
+    Restore_3D_Projection();
+}
+
+void Render_Bitmap_String(int x, int y, int z, void *font, char *string, float r, float g, float b)
+{
+
+    char *c;
+
+    // Szín beállítása
+    glColor3f(r, g, b);
+
+    // Pozícionálás
+    glLoadIdentity();
+    glRasterPos3i(x, y, z);
+
+    // Kiíratás
+    for(c = string; *c != '\0'; c++)
+    {
+        glutBitmapCharacter(font, *c);
+    }
+
+    // Szín visszaállítása
+    glColor3f(1.0f, 1.0f, 1.0f);
+}
+
+void Set_2D_Projection()
+{
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+        glLoadIdentity();
+        gluOrtho2D(0, SCREEN_WIDTH, SCREEN_HEIGHT, 0);
+        glMatrixMode(GL_MODELVIEW);
+}
+
+
+void Restore_3D_Projection()
+{
+        glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+
+    glMatrixMode(GL_MODELVIEW);
 }
 
 void Reshape()
