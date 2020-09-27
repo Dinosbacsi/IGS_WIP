@@ -10,21 +10,21 @@
 
 int Load_Model(const char* filename, struct Model* model, GLuint texture)
 {
-    // Fájl megnyitása, beolvasása
+    // FÃ¡jl megnyitÃ¡sa, beolvasÃ¡sa
     FILE* obj_file = fopen(filename, "r");
-    printf("'%s' modell betöltése...\n", filename);
+    printf("'%s' modell betoltese...\n", filename);
     if (obj_file == NULL) {
-        printf("HIBA! A '%s' modellt nem lehetett betölteni!\n", filename);
+        printf("HIBA! A '%s' modellt nem lehetett betolteni!\n", filename);
         return FALSE;
     }
 
-    // Modell adatok feltöltése
+    // Modell adatok feltÃ¶ltÃ©se
     count_elements(obj_file, model);
     create_arrays(model);
     read_elements(obj_file, model);
     model->texture = texture;
 
-    // Visszatérés sikeres modell olvasás esetén
+    // VisszatÃ©rÃ©s sikeres modell olvasÃ¡s esetÃ©n
     return TRUE;
 }
 
