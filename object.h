@@ -5,17 +5,23 @@
 #include <SDL_opengl.h>
 #include <GL\GLU.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "model.h"
 
 #define map_width 50
 #define map_length 100
+#define segment_limit 5000
 
     //Irányváltozók (kamera mozgásához)
 enum cam_direction{up, down, left, right};
+
 typedef enum {north, south, east, west} direction;
-typedef enum {nothing, warehouse} building_type;
 typedef enum {none, red, yellow} highlight;
+    //Épület típusok
+typedef enum {nothing, warehouse, processing_plant, factory, office, last} building_category;
+    // Node típusok
+typedef enum {dead_end, straight, curve, intersection_3_way, intersection_4_way} node_type;
 
 // Pozíció struktúrák
 typedef struct vec3
@@ -48,10 +54,10 @@ struct Cursor
     vec2i dif;
 };
 
-struct Virtual_Cursor
+typedef struct Virtual_Cursor
 {
-    vec2 pos;
-};
+    vec3 pos;
+}Virtual_Cursor;
 
 struct Camera
 {
@@ -64,24 +70,21 @@ struct Camera
     int field_of_view;
 };
 
-struct Tile
+typedef struct Building
 {
-    vec2i pos;
-    int occupied;
-    bool highlighted;
-};
-
-struct Building
-{
-    // Épület pozíciója, területe, forgatási iránya
+    // Épület pozíciója, mérete, iránya
     vec2i pos;
     vec2i size;
     direction facing_direction;
-    // Épület modellje
+
+    // Épület kategóriája, modellje
+    building_category category;
     struct Model building_model;
-    building_type type;
+
+    // Épület neve,
+    char name[50];
     int exists;
-};
+}Building;
 
 struct Vehicle
 {
@@ -98,6 +101,41 @@ struct Vehicle
     struct Model wheel_model;
 };
 
+typedef struct Node
+{
+    vec2i pos;
+    int number_of_connections;
+    node_type type;
+    direction facing_direction;
+
+    vec2i connection_north;
+    vec2i connection_east;
+    vec2i connection_south;
+    vec2i connection_west;
+
+    bool exists;
+}Node;
+
+typedef struct Road_Segment
+{
+    Node* A;
+    Node* B;
+    int length;
+    direction road_direction;
+
+    bool exists;
+}Road_Segment;
+
+typedef struct Tile
+{
+    vec2i pos;
+    int occupied;
+    Building* occupied_by_building;
+    Road_Segment* occupied_by_road_segment;
+    Node* occupied_by_node;
+    bool highlighted;
+}Tile;
+
 /*
 ======================================================================================
     Kamera függvények
@@ -110,7 +148,8 @@ void Move_Camera_To(struct Camera* cam, float cam_pos_x, float cam_pos_y);
 void Move_Camera_Relative(struct Camera* cam, enum cam_direction direction);
 // Kamera forgatása egérrel
 void Rotate_Camera(struct Camera* cam ,struct Cursor* cursor, SDL_Window* gWindow, int SCREEN_WIDTH, int SCREEN_HEIGHT);
-
+// 3D kurzor helyének meghatározása
+void Calculate3DCursorLocation(int cursorX, int cursorY, Virtual_Cursor* v_cursor);
 /*
 ======================================================================================
     Kirajzoló függvények függvények
@@ -132,17 +171,30 @@ void Draw_Vehicle(struct Vehicle vehicle);
     Épület kezelõ függvények
 */
 // Épület létrehozása
-void Place_Building(struct Model building_model, building_type type, int x, int y, int size_x, int size_y, direction direction, struct Building buildings[], int building_limit, struct Tile tiles[map_width][map_length]);
+void Make_Building_Type(Building* building_type, char name[50], struct Model building_model, building_category category, int size_x, int size_y);
+// Épület elhelyezés
+void Place_Building_OLD(struct Model building_model, building_category category, int x, int y, int size_x, int size_y, direction direction, struct Building buildings[], int building_limit, Tile tiles[map_width][map_length]);
 // Épület kirajzolása
-void Draw_Building(struct Building building);
+void Draw_Building(Building building);
 // Épület lebontása
-void Bulldoze_Building(struct Virtual_Cursor v_cursor, struct Building buildings[], struct Tile tiles[map_width][map_length]);
+void Bulldoze_Building_OLD(struct Virtual_Cursor v_cursor, Building buildings[], Tile tiles[map_width][map_length]);
+/*
+======================================================================================
+    Út kezelõ függvények
+*/
+void Place_Road_Segment(Road_Segment road_segments[], Node road_nodes[map_width][map_length], Tile tiles[map_width][map_length], int a_x, int a_y, int b_x, int b_y);
+void Split_Road_Segment(Road_Segment* road_to_split, Road_Segment road_segments[], Node road_nodes[map_width][map_length], Tile tiles[map_width][map_length], int x, int y);
+void Update_Road_Node(Node* road_node, Tile tiles[map_width][map_length]);
+void Draw_Road_Segment(Road_Segment road, struct Model road_model);
+void Delete_Road_Segment(Road_Segment* deleted_road_segment, Node road_nodes[map_width][map_length], Tile tiles[map_width][map_length]);
+void Delete_Road_Node(int x, int y, Road_Segment road_segments[], Node road_nodes[map_width][map_length], Tile tiles[map_width][map_length]);
 /*
 ======================================================================================
     Tile kezelõ függvények
 */
 // Tile állapotának ellenőrzése
-bool Check_Tile(int x, int y, struct Tile tiles[map_width][map_length]);
+//bool Check_Tile(int x, int y, struct Tile tiles[map_width][map_length]);
+int Check_Tile(int x, int y, struct Tile tiles[map_width][map_length]);
 // Tile kirajzolása
 void Draw_Tile(struct Tile tile, GLuint tile_texture);
 // Tile kijelölés kirajzolása
