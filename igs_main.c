@@ -52,7 +52,8 @@ bool mouse_left_clicked = false;
 enum mode{normal, build, road, bulldoze};
 enum mode game_mode;
     //Debug mód változó
-bool debug = 0;
+bool debug = false;
+bool driving = 0;
     //Menükezelő változók
 int menu_highlighted_building_category = 1;
 int menu_selected_building_category = -1;
@@ -64,6 +65,8 @@ struct Camera camera;
     //Kurzor
 struct Cursor cursor;
 struct Virtual_Cursor v_cursor;
+    //billentyűzet állapota
+const Uint8 *state;
     //Alap fénybeállítások
 GLfloat light_pos_default[] = {0.5, 1.0, 1.0, 0.0};           //fény pozíciója
 GLfloat light_color_default[] = {1.0, 1.0, 1.0, 1.0};   //fény színe
@@ -127,7 +130,8 @@ Node new_segment_A;
 Node new_segment_B;
 Road_Segment new_segment;
     //Járművek
-struct Vehicle test_vehicle;
+Vehicle test_vehicle;
+Vehicle vehicles[vehicle_limit];
     // Felirat
 char test[50] = "TESZT FELIRAT";
 char text[50];
@@ -148,6 +152,7 @@ void Mouse_Handler();
 void Build_Mode_Handler();
 void Road_Mode_Handler();
 void Bulldoze_Mode_Handler();
+void Driver_Mode_Handler();
 void Render_Scene();
 void Render_Interface();
 void Render_Bitmap_String(int x, int y, int z, void *font, char *string, float r, float g, float b);
@@ -164,7 +169,6 @@ void Close();
 */
 int main( int argc, char* args[] )
 {
-
     // SDL inicializáció ---------------------------------------------------------
     Initialize_SDL();
     // SDL mixer inicializáció ---------------------------------------------------
@@ -211,6 +215,11 @@ int main( int argc, char* args[] )
         if(game_mode == bulldoze)
         {
             Bulldoze_Mode_Handler();
+        }
+        // Vezető mód
+        if(driving)
+        {
+            Driver_Mode_Handler();
         }
 
         // Renderelés
@@ -424,27 +433,7 @@ void Initialize_Map()
             road_nodes[i][j].exists = false;
         }
     }
-
-    // ÉPÜLET STRUKTÚRA TESZT
-    /*
-    test_building.building_model = test_model;
-    test_building.facing_direction = north;
-    test_building.pos.x = 25;
-    test_building.pos.y = 50;
-    */
-
-    // ÉPÜLET TESZT 2
-    /*
-    Place_Building_OLD(test_model, warehouse, 25, 50, 1, 1, north, buildings, building_limit, tiles);
-    Place_Building_OLD(test_model, warehouse, 24, 52, 1, 1, west, buildings, building_limit, tiles);
-    Place_Building_OLD(test_model, warehouse, 23, 52, 1, 1, west, buildings, building_limit, tiles);
-    */
-
-    // ÉPÜLET TESZT 3
     // Épületek inicializálása
-    Make_Building_Type(&igs_warehouse_small, "SMALL WAREHOUSE", igs_warehouse_1, warehouse, 1, 1);
-    Make_Building_Type(&igs_warehouse_medium, "MEDIUM WAREHOUSE", igs_warehouse_2, warehouse, 3, 3);
-
     Make_Building_Type(&building_types[1], "KIS RAKTAR", igs_warehouse_1, warehouse, 1, 1);
     Make_Building_Type(&building_types[2], "KOZEPES RAKTAR", igs_warehouse_2, warehouse, 3, 3);
     Make_Building_Type(&building_types[3], "KIS TARTALY", igs_tank_1, warehouse, 1, 1);
@@ -457,6 +446,8 @@ void Initialize_Map()
     test_vehicle.pos.y = 50.8;
     test_vehicle.pos.z = 0;
     test_vehicle.rotate.z = -10;
+    test_vehicle.max_speed = 0.02;
+    test_vehicle.acceleration_rate = 0.0001;
 
     test_vehicle.wheel[0].x = 0.32;
     test_vehicle.wheel[1].x = 0.32;
@@ -472,68 +463,6 @@ void Initialize_Map()
     test_vehicle.wheel[1].z = 0.03;
     test_vehicle.wheel[2].z = 0.03;
     test_vehicle.wheel[3].z = 0.03;
-
-    // ÚT TESZT
-    /*
-    test_A.exists = true;
-    test_A.pos.x = 20;
-    test_A.pos.y = 25;
-    test_B.exists = 1;
-    test_B.pos.x = 20;
-    test_B.pos.y = 35;
-
-    test_road.exists = true;
-    test_road.A = &test_A;
-    test_road.B = &test_B;
-    test_road.length = 10;
-    */
-
-    /*
-    road_nodes[10][10].exists = true;
-    road_nodes[10][10].pos.x = 10;
-    road_nodes[10][10].pos.y = 10;
-    road_nodes[10][10].connection_east.x = 10;
-    road_nodes[10][10].connection_east.y = 20;
-
-    road_nodes[10][20].exists = true;
-    road_nodes[10][20].pos.x = 10;
-    road_nodes[10][20].pos.y = 20;
-    road_nodes[10][20].connection_west.x = 10;
-    road_nodes[10][20].connection_west.y = 10;
-
-    test_road.exists = true;
-    test_road.A = &road_nodes[10][10];
-    test_road.B = &road_nodes[10][20];
-    test_road.length = 10;
-    */
-
-    /*
-    road_nodes[15][15].exists = true;
-    road_nodes[15][15].pos.x = 15;
-    road_nodes[15][15].pos.y = 15;
-    road_nodes[15][15].connection_south.x = 30;
-    road_nodes[15][15].connection_south.y = 15;
-
-    road_nodes[30][15].exists = true;
-    road_nodes[30][15].pos.x = 30;
-    road_nodes[30][15].pos.y = 15;
-    road_nodes[30][15].connection_north.x = 15;
-    road_nodes[30][15].connection_north.y = 15;
-
-    test_road2.exists = true;
-    test_road2.A = road_nodes[15][15];
-    test_road2.B = road_nodes[30][15];
-    test_road2.length = 15;
-    */
-
-    // ÚT TESZT 2
-    Place_Road_Segment(road_segments, road_nodes, tiles, 10, 10, 10, 20);
-    Place_Road_Segment(road_segments, road_nodes, tiles, 15, 15, 30, 15);
-    Place_Road_Segment(road_segments, road_nodes, tiles, 15, 15, 15, 20);
-    Place_Road_Segment(road_segments, road_nodes, tiles, 15, 15, 15, 5);
-    Place_Road_Segment(road_segments, road_nodes, tiles, 10, 20, 15, 20);
-    Place_Road_Segment(road_segments, road_nodes, tiles, 15, 20, 15, 22);
-    Place_Road_Segment(road_segments, road_nodes, tiles, 12, 15, 15, 15);
 }
 
 void Event_Handler()
@@ -575,18 +504,12 @@ void Event_Handler()
                         running = 0;
                         break;
 
+                    case SDLK_F11:
+                        driving = !driving;
+                        break;
                     // F12 : Debug infó ki/bekapcsolása
                     case SDLK_F12:
-                        if(debug == 0)
-                        {
-                            debug = 1;
-                            printf("\nDebug info bekapcsolva.");
-                        }
-                        else
-                        {
-                            debug = 0;
-                            printf("\nDebug info kikapcsolva.");
-                        }
+                        debug = !debug;
                         break;
 
                     // N : építő mód
@@ -632,6 +555,13 @@ void Event_Handler()
                         if(game_mode == build)
                             new_building.category = warehouse;
                             new_building.building_model = test_model;
+                        break;
+                    // 2 : debug módban -> test jármű
+                    case SDLK_2:
+                        if(debug == 1)
+                        {
+                            Place_Vehicle(vehicles, &test_vehicle, (int)roundf(v_cursor.pos.x), (int)roundf(v_cursor.pos.y), road_segments, tiles);
+                        }
                         break;
 
                     // R : építő módban -> forgatás
@@ -701,6 +631,7 @@ void Event_Handler()
                         {
                             menu_highlighted_building_category = menu_selected_building_category;
                             menu_selected_building_category = -1;
+                            menu_highlighted_building_type = 1;
                         }
                         else if(game_mode == build && menu_selected_building_category == -1)
                         {
@@ -737,28 +668,6 @@ void Mouse_Handler()
             Move_Camera_Relative(&camera, right);
 
     }
-
-    // 3D curzor próba
-/*
-    GLint viewport[4];
-    GLdouble modelview[16];
-    GLdouble projection[16];
-    GLfloat winX, winY, winZ;
-    GLdouble posX, posY, posZ;
-
-    glGetDoublev(GL_MODELVIEW_MATRIX, modelview);
-    glGetDoublev(GL_PROJECTION_MATRIX, projection);
-    glGetIntegerv(GL_VIEWPORT, viewport);
-
-    winX = (float)cursor.pos.x;
-    winY = (float)viewport[3] - (float)cursor.pos.y;
-    glReadPixels(winX, winY, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &winZ);
-    gluUnProject(winX, winY, winZ, modelview, projection, viewport, &posX, &posY, &posZ);
-
-    v_cursor.pos.x = camera.pos.x - sin(camera.angle_h) * posX - cos(camera.angle_h) * posY;
-    v_cursor.pos.y = camera.pos.y + cos(camera.angle_h) * posX - sin(camera.angle_h) * posY;
-    v_cursor.pos.z = posZ;
-    */
 }
 
 void Build_Mode_Handler()
@@ -849,10 +758,62 @@ void Build_Mode_Handler()
 
 void Road_Mode_Handler()
 {
+    bool free_to_build = true;
+
+    if(new_segment.exists)
+    {
+        new_segment.B->pos.x = roundf(v_cursor.pos.x);
+        new_segment.B->pos.y = roundf(v_cursor.pos.y);
+
+        if(!(new_segment.A->pos.x == new_segment.B->pos.x) && !(new_segment.A->pos.y == new_segment.B->pos.y))
+        {
+            if(fabs(new_segment.A->pos.x - roundf(v_cursor.pos.x)) > fabs(new_segment.A->pos.y - roundf(v_cursor.pos.y)))
+            {
+                new_segment.B->pos.x = roundf(v_cursor.pos.x);
+                new_segment.B->pos.y = new_segment.A->pos.y;
+            }
+            else
+            {
+                new_segment.B->pos.x = new_segment.A->pos.x;
+                new_segment.B->pos.y = roundf(v_cursor.pos.y);
+            }
+        }
+
+        if(new_segment.A->pos.x == new_segment.B->pos.x && new_segment.A->pos.y == new_segment.B->pos.y)
+            new_segment.length = 0;
+        else if(new_segment.A->pos.x == new_segment.B->pos.x)
+        {
+            new_segment.length = fabsf(new_segment.A->pos.y - new_segment.B->pos.y);
+
+            int y = fminf(new_segment.A->pos.y, new_segment.B->pos.y);
+            for(;y <= fmaxf(new_segment.A->pos.y, new_segment.B->pos.y); y++)
+            {
+                if(Check_Tile(new_segment.A->pos.x, y, tiles) == 1)
+                {
+                    tiles[new_segment.A->pos.x][y].highlighted = true;
+                    free_to_build = false;
+                }
+            }
+        }
+        else
+        {
+            new_segment.length = fabsf(new_segment.A->pos.x - new_segment.B->pos.x);
+
+            int x = fminf(new_segment.A->pos.x, new_segment.B->pos.x);
+            for(;x <= fmaxf(new_segment.A->pos.x, new_segment.B->pos.x); x++)
+            {
+                if(Check_Tile(x, new_segment.A->pos.y, tiles) == 1)
+                {
+                    tiles[x][new_segment.A->pos.y].highlighted = true;
+                    free_to_build = false;
+                }
+            }
+        }
+    }
 
     if(mouse_left_clicked)
     {
-        if(new_segment.exists)
+        if(new_segment.exists && free_to_build)
         {
             if(new_segment.A->pos.x == new_segment.B->pos.x)
             {
@@ -889,7 +850,7 @@ void Road_Mode_Handler()
 
             new_segment.exists = false;
         }
-        else
+        else if(!new_segment.exists && free_to_build)
         {
             new_segment.exists = true;
             new_segment.A = &new_segment_A;
@@ -899,32 +860,6 @@ void Road_Mode_Handler()
         }
 
         mouse_left_clicked = false;
-    }
-    if(new_segment.exists)
-    {
-        new_segment.B->pos.x = roundf(v_cursor.pos.x);
-        new_segment.B->pos.y = roundf(v_cursor.pos.y);
-
-        if(!(new_segment.A->pos.x == new_segment.B->pos.x) && !(new_segment.A->pos.y == new_segment.B->pos.y))
-        {
-            if(fabs(new_segment.A->pos.x - roundf(v_cursor.pos.x)) > fabs(new_segment.A->pos.y - roundf(v_cursor.pos.y)))
-            {
-                new_segment.B->pos.x = roundf(v_cursor.pos.x);
-                new_segment.B->pos.y = new_segment.A->pos.y;
-            }
-            else
-            {
-                new_segment.B->pos.x = new_segment.A->pos.x;
-                new_segment.B->pos.y = roundf(v_cursor.pos.y);
-            }
-        }
-
-        if(new_segment.A->pos.x == new_segment.B->pos.x && new_segment.A->pos.y == new_segment.B->pos.y)
-            new_segment.length = 0;
-        else if(new_segment.A->pos.x == new_segment.B->pos.x)
-            new_segment.length = fabsf(new_segment.A->pos.y - new_segment.B->pos.y);
-        else
-            new_segment.length = fabsf(new_segment.A->pos.x - new_segment.B->pos.x);
     }
 }
 
@@ -953,6 +888,22 @@ void Bulldoze_Mode_Handler()
         }
     }
 
+}
+
+void Driver_Mode_Handler()
+{
+    Move_Vehicle(&test_vehicle);
+
+    state = SDL_GetKeyboardState(NULL);
+    if(state[SDL_SCANCODE_UP])
+        Vehicle_Accelerate(&test_vehicle);
+    else if(state[SDL_SCANCODE_DOWN])
+        Vehicle_Decelerate(&test_vehicle);
+
+    if(state[SDL_SCANCODE_RIGHT])
+        test_vehicle.rotate.z -= 1;
+    if(state[SDL_SCANCODE_LEFT])
+        test_vehicle.rotate.z += 1;
 }
 
 void Render_Scene()
@@ -999,6 +950,15 @@ void Render_Scene()
         if(game_mode == build && new_building.category != nothing)
         {
             Draw_Building(new_building);
+        }
+        for(i=0; i<vehicle_limit; i++)
+        {
+            if(vehicles[i].exists == true)
+            {
+                Draw_Vehicle(vehicles[i]);
+                Vehicle_Cruise(&vehicles[i], road_nodes, tiles);
+            }
+
         }
 
         // Utak kirajzolása
