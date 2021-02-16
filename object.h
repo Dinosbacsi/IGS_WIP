@@ -12,6 +12,8 @@
 #define map_width 50
 #define map_length 100
 #define segment_limit 5000
+#define vehicle_limit 100
+#define vehicle_turning_treshold 2
 
     //Irányváltozók (kamera mozgásához)
 enum cam_direction{up, down, left, right};
@@ -86,21 +88,6 @@ typedef struct Building
     int exists;
 }Building;
 
-struct Vehicle
-{
-    // Jármû pozíciója
-    vec3 pos;
-    vec3 rotate;
-
-    // Jármû kerekeinek pozíciója
-    // sorrend: BE, JE, BH, JH
-    vec3 wheel[4];
-
-    // Jármû modelljei
-    struct Model vehicle_model;
-    struct Model wheel_model;
-};
-
 typedef struct Node
 {
     vec2i pos;
@@ -135,6 +122,37 @@ typedef struct Tile
     Node* occupied_by_node;
     bool highlighted;
 }Tile;
+
+typedef struct Vehicle
+{
+    // Jármû pozíciója
+    vec2i tile;
+    vec3 pos;
+    vec3 rotate;
+    direction facing;
+    direction previous_facing;
+    bool turning;
+    float speed;
+    float max_speed;
+    float acceleration_rate;
+
+    // Jármű célja
+    bool exists;
+    Node* destination_node;
+    Node* next_node;
+    Node* previous_node;
+    Tile* current_tile;
+
+    // Jármû kerekeinek pozíciója
+    // sorrend: BE, JE, BH, JH
+    vec3 wheel[4];
+    float wheel_rotate;
+    int wheel_turn;
+
+    // Jármû modelljei
+    struct Model vehicle_model;
+    struct Model wheel_model;
+}Vehicle;
 
 /*
 ======================================================================================
@@ -199,3 +217,21 @@ int Check_Tile(int x, int y, struct Tile tiles[map_width][map_length]);
 void Draw_Tile(struct Tile tile, GLuint tile_texture);
 // Tile kijelölés kirajzolása
 void Draw_Highlight(struct Tile tile);
+/*
+======================================================================================
+    Jármű kezelõ függvények
+*/
+void Place_Vehicle(Vehicle vehicles[], Vehicle* vehicle_type, int tile_x, int tile_y, Road_Segment road_segments[], Tile tiles[map_width][map_length]);
+void Vehicle_Cruise(Vehicle* vehicle, Node road_nodes[map_width][map_length], Tile tiles[map_width][map_length]);
+void Vehicle_Cruise_Choose_Direction(Vehicle* vehicle, Node road_nodes[map_width][map_length]);
+void Vehicle_Go_North(Vehicle* vehicle, Node road_nodes[map_width][map_length]);
+void Vehicle_Go_East(Vehicle* vehicle, Node road_nodes[map_width][map_length]);
+void Vehicle_Go_South(Vehicle* vehicle, Node road_nodes[map_width][map_length]);
+void Vehicle_Go_West(Vehicle* vehicle, Node road_nodes[map_width][map_length]);
+void Animate_Vehicle_Turning(Vehicle* vehicle);
+void Vehicle_Turn_Left(Vehicle* vehicle);
+void Vehicle_Turn_Right(Vehicle* vehicle);
+void Vehicle_Steer_Straight(Vehicle* vehicle);
+void Move_Vehicle(Vehicle* vehicle);
+void Vehicle_Accelerate(Vehicle* vehicle);
+void Vehicle_Decelerate(Vehicle* vehicle);
