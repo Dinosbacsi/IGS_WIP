@@ -611,4 +611,3 @@ void print_bounding_box(const struct Model* model)
     printf("y in [%lf, %lf]\n", min_y, max_y);
     printf("z in [%lf, %lf]\n", min_z, max_z);
 }
-
