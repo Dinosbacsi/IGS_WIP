@@ -27,8 +27,13 @@
 #include <float.h>
 
     //Saját headerek
-#include "object.h"
 #include "model.h"
+#include "utility.h"
+#include "map.h"
+#include "building.h"
+#include "road.h"
+#include "vehicle.h"
+
 
 /*
 ======================================================================================
@@ -71,9 +76,6 @@ const Uint8 *state;
 GLfloat light_pos_default[] = {0.5, 1.0, 1.0, 0.0};           //fény pozíciója
 GLfloat light_color_default[] = {1.0, 1.0, 1.0, 1.0};   //fény színe
 GLfloat global_ambient_light[] = {0.3, 0.3, 0.3, 1.0};  //globális fény
-    //Négyzetrács háló változói
-#define map_width 50
-#define map_length 100
     //Épület limit
 #define building_limit 5000
     //Út node limit
@@ -90,7 +92,11 @@ GLuint tex_igs_tank_1;
 GLuint tex_igs_truck_small_box;
 GLuint tex_igs_road_new;
 GLuint tex_igs_road_new2;
+GLuint tex_igs_road_main;
+GLuint tex_igs_tree_1;
+GLuint tex_igs_shrubline_1;
     // Modell változók
+struct Model igs_hills;
 struct Model test_model;
 struct Model igs_warehouse_1;
 struct Model igs_warehouse_2;
@@ -103,6 +109,13 @@ struct Model igs_road_curve;
 struct Model igs_road_3_way;
 struct Model igs_road_4_way;
 struct Model igs_road_dead_end;
+struct Model igs_road_main_straight;
+struct Model igs_road_main_curve;
+struct Model igs_road_main_3_way;
+struct Model igs_road_main_4_way;
+struct Model igs_road_main_dead_end;
+struct Model igs_tree_1;
+struct Model igs_shrubline_1;
     //Tile-ok
 Tile test_tile;
 Tile tiles[map_width][map_length];
@@ -114,11 +127,15 @@ Building igs_warehouse_medium;
 Building igs_factory_small;
 Building igs_tank_small;
 Building buildings[building_limit];
+    //Fák
+Scenery_Object trees[tree_limit];
     //Utak - IDEIGLENES
 Road_Segment test_road;
 Road_Segment test_road2;
 Node test_A;
 Node test_B;
+Road_Type road_normal;
+Road_Type road_main;
     //Épület kategóriák, típusok
 Building building_types[50];
 char building_category_names_UPPER_CASE[][30]={"SEMMI", "RAKTAR", "FELDOLGOZO UZEM", "GYAR", "IRODA"};
@@ -185,13 +202,13 @@ int main( int argc, char* args[] )
     Initialize_Map();
 
 
-    camera.pos.x = 25;
-    camera.pos.y = 50;
+    camera.pos.x = player_zone_start_x + player_zone_width / 2;
+    camera.pos.y = player_zone_start_y + player_zone_length / 2;
     camera.pos.z = 0;
     camera.angle_h = 0;
     camera.angle_v = 1;
     camera.distance = 5;
-    camera.speed = 0.1;
+    camera.speed = 0.01;
     camera.sensitivity = 0.005;
     camera.field_of_view = 30;
 
@@ -307,6 +324,18 @@ void Initialize_OpenGL()
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
 
+	// Köd
+	glEnable(GL_FOG);
+	float FogCol[3]={0.8f,0.9f,0.9f};
+    glFogfv(GL_FOG_COLOR,FogCol);
+    glFogi(GL_FOG_MODE, GL_LINEAR);
+    glFogf(GL_FOG_START, 50.f);
+    glFogf(GL_FOG_END, 200.f);
+
+
+	glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 	//Árnyékolás módjának beállítása
     glShadeModel(GL_SMOOTH);
 
@@ -333,66 +362,92 @@ void Initialize_Textures()
 	tex_grass = SOIL_load_OGL_texture
 	(
         "textures/ground_grass.png",
+        /*SOIL_LOAD_AUTO,
+        SOIL_CREATE_NEW_ID,
+        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT*/
         SOIL_LOAD_AUTO,
         SOIL_CREATE_NEW_ID,
-        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB
     );
     tex_sky = SOIL_load_OGL_texture
 	(
         "textures/skybox_1.png",
         SOIL_LOAD_AUTO,
         SOIL_CREATE_NEW_ID,
-        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB
     );
     tex_igs_warehouse_1 = SOIL_load_OGL_texture
 	(
         "textures/igs_warehouse_1.png",
         SOIL_LOAD_AUTO,
         SOIL_CREATE_NEW_ID,
-        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB
     );
     tex_igs_warehouse_2 = SOIL_load_OGL_texture
 	(
         "textures/igs_warehouse_2.png",
         SOIL_LOAD_AUTO,
         SOIL_CREATE_NEW_ID,
-        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB
     );
     tex_igs_factory_1 = SOIL_load_OGL_texture
 	(
         "textures/igs_factory_1.png",
         SOIL_LOAD_AUTO,
         SOIL_CREATE_NEW_ID,
-        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB
     );
     tex_igs_tank_1 = SOIL_load_OGL_texture
 	(
         "textures/igs_tank_1.png",
         SOIL_LOAD_AUTO,
         SOIL_CREATE_NEW_ID,
-        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB
     );
     tex_igs_truck_small_box = SOIL_load_OGL_texture
 	(
         "textures/igs_truck_small_box.png",
         SOIL_LOAD_AUTO,
         SOIL_CREATE_NEW_ID,
-        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB
     );
     tex_igs_road_new = SOIL_load_OGL_texture
 	(
         "textures/igs_road_new.png",
         SOIL_LOAD_AUTO,
         SOIL_CREATE_NEW_ID,
-        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB
     );
     tex_igs_road_new2 = SOIL_load_OGL_texture
 	(
         "textures/igs_road_new2.png",
         SOIL_LOAD_AUTO,
         SOIL_CREATE_NEW_ID,
-        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB
     );
+    tex_igs_road_main = SOIL_load_OGL_texture
+	(
+        "textures/igs_road_main.png",
+        SOIL_LOAD_AUTO,
+        SOIL_CREATE_NEW_ID,
+        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB
+    );
+    tex_igs_tree_1 = SOIL_load_OGL_texture
+	(
+        "textures/igs_tree_2.png",
+        SOIL_LOAD_AUTO,
+        SOIL_CREATE_NEW_ID,
+        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB
+    );
+    tex_igs_shrubline_1 = SOIL_load_OGL_texture
+	(
+        "textures/igs_shrubline_1.png",
+        SOIL_LOAD_AUTO,
+        SOIL_CREATE_NEW_ID,
+        SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB
+    );
+
+
 
     glBindTexture(GL_TEXTURE_2D, tex_grass);
     glTexParameterf(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP);
@@ -403,6 +458,7 @@ void Initialize_Textures()
 
 void Initialize_Models()
 {
+    Load_Model("models/igs_hills_1.obj", &igs_hills, tex_grass);
     Load_Model("models/igs_warehouse_1.obj", &test_model, tex_igs_warehouse_1);
     Load_Model("models/igs_warehouse_1.obj", &igs_warehouse_1, tex_igs_warehouse_1);
     Load_Model("models/igs_warehouse_2.obj", &igs_warehouse_2, tex_igs_warehouse_2);
@@ -410,21 +466,28 @@ void Initialize_Models()
     Load_Model("models/igs_tank_1.obj", &igs_tank_1, tex_igs_tank_1);
     Load_Model("models/igs_truck_small_box.obj", &test_truck, tex_igs_truck_small_box);
     Load_Model("models/igs_truck_small_wheel.obj", &test_wheel, tex_igs_truck_small_box);
+
     Load_Model("models/igs_road_straight.obj", &igs_road_straight, tex_igs_road_new);
     Load_Model("models/igs_road_curve.obj", &igs_road_curve, tex_igs_road_new);
     Load_Model("models/igs_road_3_way.obj", &igs_road_3_way, tex_igs_road_new);
     Load_Model("models/igs_road_4_way.obj", &igs_road_4_way, tex_igs_road_new);
     Load_Model("models/igs_road_end.obj", &igs_road_dead_end, tex_igs_road_new2);
+
+    Load_Model("models/igs_road_main_straight.obj", &igs_road_main_straight, tex_igs_road_main);
+    Load_Model("models/igs_road_main_curve.obj", &igs_road_main_curve, tex_igs_road_main);
+    Load_Model("models/igs_road_main_3_way.obj", &igs_road_main_3_way, tex_igs_road_main);
+    Load_Model("models/igs_road_main_4_way.obj", &igs_road_main_4_way, tex_igs_road_main);
+
+    Load_Model("models/igs_tree_2d_1.obj", &igs_tree_1, tex_igs_tree_1);
+    Load_Model("models/igs_shrubline_1.obj", &igs_shrubline_1, tex_igs_shrubline_1);
 }
 
 void Initialize_Map()
 {
-    // Ciklusváltozók
-    int i, j;
     // Ciklus a Tile-ok inicializálására
-    for(i=0; i<map_width; i++)
+    for(int i=0; i<map_width; i++)
     {
-        for(j=0; j<map_length; j++)
+        for(int j=0; j<map_length; j++)
         {
             tiles[i][j].pos.x = i;
             tiles[i][j].pos.y = j;
@@ -434,10 +497,44 @@ void Initialize_Map()
         }
     }
     // Épületek inicializálása
+    /*
     Make_Building_Type(&building_types[1], "KIS RAKTAR", igs_warehouse_1, warehouse, 1, 1);
     Make_Building_Type(&building_types[2], "KOZEPES RAKTAR", igs_warehouse_2, warehouse, 3, 3);
     Make_Building_Type(&building_types[3], "KIS TARTALY", igs_tank_1, warehouse, 1, 1);
     Make_Building_Type(&building_types[4], "KIS GYAR", igs_factory_1, factory, 2, 2);
+    */
+    FILE *bc_file;
+    char *bc_filename = "building_categories.txt";
+    char bc_line[100];
+
+    bc_file = fopen(bc_filename, "r");
+    if(!bc_file)
+    {
+        printf("Nem lehetett megnyitni a(z) %s fajlt!\n", bc_filename);
+    }
+    else
+    {
+        int i = 0;
+        while(i < sizeof(building_types) && fgets(bc_line, sizeof(bc_line), bc_file) != NULL)
+        {
+            char building_name[50];
+            char model_name[50];
+            char texture_name[50];
+            char building_category_name[50];
+            int building_size_x;
+            int building_size_y;
+            sscanf(bc_line, "%s\t%s\t%s\t%d\t%d\t%s", building_name, model_name, texture_name, &building_size_x, &building_size_y, building_category_name);
+
+            building_category new_building_type_category = Building_Type_Enum(building_category_name);
+
+            Make_Building_Type(&building_types[i+1], building_name, model_name, texture_name, new_building_type_category, building_size_x, building_size_y);
+
+            i++;
+        }
+    }
+    // Porta
+    char kis_porta[50] = "KIS_PORTA";
+    Place_Building_By_Name(kis_porta, 99, 149, north, building_types, buildings, building_limit, tiles);
 
     // JÁRMŰ STRUKTÚRA TESZT
     test_vehicle.vehicle_model = test_truck;
@@ -463,6 +560,62 @@ void Initialize_Map()
     test_vehicle.wheel[1].z = 0.03;
     test_vehicle.wheel[2].z = 0.03;
     test_vehicle.wheel[3].z = 0.03;
+
+    // Út típusok inicializáció
+    sprintf(road_normal.name, "Atlagos ut");
+    road_normal.straight = &igs_road_straight;
+    road_normal.curve = &igs_road_curve;
+    road_normal.intersection_3_way = &igs_road_3_way;
+    road_normal.intersection_4_way = &igs_road_4_way;
+    road_normal.dead_end = &igs_road_dead_end;
+
+    sprintf(road_main.name, "Fo ut");
+    road_main.straight = &igs_road_main_straight;
+    road_main.curve = &igs_road_main_curve;
+    road_main.intersection_3_way = &igs_road_main_3_way;
+    road_main.intersection_4_way = &igs_road_main_4_way;
+    road_main.dead_end = &igs_road_dead_end;
+
+
+    // Fúót elhelyezése
+    Place_Road_Segment(road_segments, road_nodes, &road_main, tiles, 104, 60, 104, 299);
+    Place_Road_Segment(road_segments, road_nodes, &road_main, tiles, 104, 60, 110, 60);
+    Place_Road_Segment(road_segments, road_nodes, &road_main, tiles, 110, 0, 110, 60);
+    Place_Road_Segment(road_segments, road_nodes, &road_main, tiles, 104, 149, 98, 149);
+
+    // Fájlból fa teszt
+    FILE *file;
+    char *filename = "tree_test.txt";
+
+    char line[100];
+
+    file = fopen(filename, "r");
+    if(!file)
+    {
+        printf("Nem lehetett megnyitni a(z) %s fajlt!\n", filename);
+    }
+    else
+    {
+        int i = 0;
+        while(i < tree_limit && fgets(line, sizeof(line), file) != NULL)
+        {
+            int tree_model;
+            sscanf(line, "%f\t%f\t%f\t%f\t%d", &trees[i].pos.x, &trees[i].pos.y, &trees[i].pos.z, &trees[i].rotate, &tree_model);
+
+            switch(tree_model)
+            {
+            case 1:
+                trees[i].model = &igs_tree_1;
+                break;
+            case 2:
+                trees[i].model = &igs_shrubline_1;
+                break;
+            }
+
+            trees[i].exsists = true;
+            i++;
+        }
+    }
 }
 
 void Event_Handler()
@@ -560,7 +713,7 @@ void Event_Handler()
                     case SDLK_2:
                         if(debug == 1)
                         {
-                            Place_Vehicle(vehicles, &test_vehicle, (int)roundf(v_cursor.pos.x), (int)roundf(v_cursor.pos.y), road_segments, tiles);
+                            Place_Vehicle(vehicles, &test_vehicle, (int)roundf(v_cursor.pos.x), (int)roundf(v_cursor.pos.y), road_segments, tiles, road_nodes);
                         }
                         break;
 
@@ -667,6 +820,15 @@ void Mouse_Handler()
         else if(cursor.pos.y >= SCREEN_HEIGHT - 10)
             Move_Camera_Relative(&camera, right);
 
+
+        if(camera.pos.x < player_zone_start_x)
+            camera.pos.x = player_zone_start_x;
+        if(camera.pos.x > player_zone_start_x + player_zone_width)
+            camera.pos.x = player_zone_start_x + player_zone_width;
+        if(camera.pos.y < player_zone_start_y)
+            camera.pos.y = player_zone_start_y;
+        if(camera.pos.y > player_zone_start_y + player_zone_length)
+            camera.pos.y = player_zone_start_y + player_zone_length;
     }
 }
 
@@ -705,20 +867,44 @@ void Build_Mode_Handler()
 
     if(new_building.category != nothing)
     {
-        //bool tile_is_free = Check_Tile(roundf(v_cursor.pos.x), roundf(v_cursor.pos.y), tiles);
-
         //Tile-ok ellenőrzése
         bool tile_is_free = true;
-        //int lx = (int)(roundf(v_cursor.pos.x) - ((float)new_building.size.x)/2);
-        int lx = new_building.pos.x - (new_building.size.x/2);
-        //int ly = (int)(roundf(v_cursor.pos.y) - ((float)new_building.size.y)/2);
-        int ly = new_building.pos.y - (new_building.size.y/2);
-        for(int ix = 0; ix < new_building.size.x; ix++)
+        /*int lx = (int)((float)new_building.pos.x - ((float)new_building.size.y)/2);
+        int ly = (int)((float)new_building.pos.y - ((float)new_building.size.y)/2);
+        for(int ix = 1; ix <= new_building.size.x; ix++)
         {
-            for(int iy = 0; iy < new_building.size.y; iy++)
+            for(int iy = 1; iy <= new_building.size.y; iy++)
             {
                 if(Check_Tile(lx+ix, ly+iy, tiles) != 0)
                     tile_is_free = false;
+            }
+        }*/
+        if(new_building.facing_direction == north || new_building.facing_direction == south)
+        {
+            int lx = (int)((float)new_building.pos.x - ((float)new_building.size.x)/2);
+            int ly = (int)((float)new_building.pos.y - ((float)new_building.size.y)/2);
+
+            for(int ix = 1; ix <= new_building.size.x; ix++)
+            {
+                for(int iy = 1; iy <= new_building.size.y; iy++)
+                {
+                    if(Check_Tile(lx+ix, ly+iy, tiles) != 0)
+                    tile_is_free = false;
+                }
+            }
+        }
+        else if(new_building.facing_direction == east || new_building.facing_direction == west)
+        {
+            int lx = (int)((float)new_building.pos.x - ((float)new_building.size.y)/2);
+            int ly = (int)((float)new_building.pos.y - ((float)new_building.size.x)/2);
+
+            for(int ix = 1; ix <= new_building.size.y; ix++)
+            {
+                for(int iy = 1; iy <= new_building.size.x; iy++)
+                {
+                    if(Check_Tile(lx+ix, ly+iy, tiles) != 0)
+                    tile_is_free = false;
+                }
             }
         }
 
@@ -825,11 +1011,11 @@ void Road_Mode_Handler()
                 {
                     if(Check_Tile(new_segment.A->pos.x, mid_y, tiles) == 2 || Check_Tile(new_segment.A->pos.x, mid_y, tiles) == 3)
                     {
-                        Place_Road_Segment(road_segments, road_nodes, tiles, new_segment.A->pos.x, start_y, new_segment.A->pos.x, mid_y);
+                        Place_Road_Segment(road_segments, road_nodes, &road_normal, tiles, new_segment.A->pos.x, start_y, new_segment.A->pos.x, mid_y);
                         start_y = mid_y;
                     }
                 }
-                Place_Road_Segment(road_segments, road_nodes, tiles, new_segment.A->pos.x, start_y, new_segment.A->pos.x, end_y);
+                Place_Road_Segment(road_segments, road_nodes, &road_normal, tiles, new_segment.A->pos.x, start_y, new_segment.A->pos.x, end_y);
             }
             else if(new_segment.A->pos.y == new_segment.B->pos.y)
             {
@@ -841,11 +1027,11 @@ void Road_Mode_Handler()
                 {
                     if(Check_Tile(mid_x, new_segment.A->pos.y, tiles) == 2 || Check_Tile(mid_x, new_segment.A->pos.y, tiles) == 3)
                     {
-                        Place_Road_Segment(road_segments, road_nodes, tiles, start_x, new_segment.A->pos.y, mid_x, new_segment.A->pos.y);
+                        Place_Road_Segment(road_segments, road_nodes, &road_normal, tiles, start_x, new_segment.A->pos.y, mid_x, new_segment.A->pos.y);
                         start_x = mid_x;
                     }
                 }
-                Place_Road_Segment(road_segments, road_nodes, tiles, start_x, new_segment.A->pos.y, end_x, new_segment.A->pos.y);
+                Place_Road_Segment(road_segments, road_nodes, &road_normal, tiles, start_x, new_segment.A->pos.y, end_x, new_segment.A->pos.y);
             }
 
             new_segment.exists = false;
@@ -857,6 +1043,7 @@ void Road_Mode_Handler()
             new_segment.B = &new_segment_B;
             new_segment.A->pos.x = roundf(v_cursor.pos.x);
             new_segment.A->pos.y = roundf(v_cursor.pos.y);
+            new_segment.road_type = &road_normal;
         }
 
         mouse_left_clicked = false;
@@ -920,17 +1107,24 @@ void Render_Scene()
         // Fény pozícionálása
         glLightfv(GL_LIGHT0, GL_POSITION, light_pos_default);
 
+        // Domb kirajzolás
+        glPushMatrix();
+            glTranslatef(map_width/2 - 0.5, map_length/2 - 0.5, 0);
+            Draw_Model(&igs_hills);
+        glPopMatrix();
+
         // Ciklus a Tile-ok kirajzolására
-        int i, j;
-        for(i=0; i<map_width; i++)
+        for(int i = player_zone_start_x; i < player_zone_start_x + player_zone_width; i++)
         {
-            for(j=0; j<map_length; j++)
+            for(int j = player_zone_start_y; j < player_zone_start_y + player_zone_length; j++)
             {
                 Draw_Tile(tiles[i][j], tex_grass);
             }
         }
         // 3D kurzor kirajzolása
         Calculate3DCursorLocation(cursor.pos.x, cursor.pos.y, &v_cursor);
+        if(game_mode == build || game_mode == road ||game_mode == bulldoze)
+            Restrict_3D_Cursor_To_Player_Area(&v_cursor);
         if(debug)
             Draw_3D_Cursor(v_cursor);
 
@@ -940,7 +1134,7 @@ void Render_Scene()
         // Objektum Kirajzolása
         Draw_Building(test_building);
         Draw_Vehicle(test_vehicle);
-        for(i=0; i<building_limit; i++)
+        for(int i=0; i<building_limit; i++)
         {
             if(buildings[i].exists != 0)
             {
@@ -951,7 +1145,7 @@ void Render_Scene()
         {
             Draw_Building(new_building);
         }
-        for(i=0; i<vehicle_limit; i++)
+        for(int i=0; i<vehicle_limit; i++)
         {
             if(vehicles[i].exists == true)
             {
@@ -962,11 +1156,11 @@ void Render_Scene()
         }
 
         // Utak kirajzolása
-        for(i=0; i<segment_limit; i++)
+        for(int i=0; i<segment_limit; i++)
         {
             if(road_segments[i].exists)
             {
-                Draw_Road_Segment(road_segments[i], igs_road_straight);
+                Draw_Road_Segment(road_segments[i]);
             }
         }
         if(game_mode == road)
@@ -975,7 +1169,7 @@ void Render_Scene()
             {
                 if(new_segment.length > 0)
                 {
-                    Draw_Road_Segment(new_segment, igs_road_straight);
+                    Draw_Road_Segment(new_segment);
                     if(new_segment.A->pos.x == new_segment.B->pos.x)
                     {
                         glPushMatrix();
@@ -1022,52 +1216,67 @@ void Render_Scene()
         }
 
         // Node-k kirajzoláas
-        for(i=0; i<map_width; i++)
+        for(int i=0; i<map_width; i++)
         {
-            for(j=0; j<map_length; j++)
+            for(int j=0; j<map_length; j++)
             {
                 if(road_nodes[i][j].exists)
                 {
-                    // IDEIGLENES - JOBB LENNE KÜLÖN FÜGGVÉNYBEN
-                    glPushMatrix();
-                        glTranslatef(road_nodes[i][j].pos.x, road_nodes[i][j].pos.y, 0);
-                        switch(road_nodes[i][j].facing_direction)
-                        {
-                            case north:
-                                glRotatef(-90, 0, 0, 1);
-                                break;
-                            case east:
-                                glRotatef(0, 0, 0, 1);
-                                break;
-                            case south:
-                                glRotatef(90, 0, 0, 1);
-                                break;
-                            case west:
-                                glRotatef(180, 0, 0, 1);
-                                break;
-                        }
-                        switch(road_nodes[i][j].type)
-                        {
-                            case dead_end:
-                                Draw_Model(&igs_road_dead_end);
-                                break;
-                            case straight:
-                                Draw_Model(&igs_road_straight);
-                                break;
-                            case curve:
-                                Draw_Model(&igs_road_curve);
-                                break;
-                            case intersection_3_way:
-                                Draw_Model(&igs_road_3_way);
-                                break;
-                            case intersection_4_way:
-                                Draw_Model(&igs_road_4_way);
-                                break;
-                        }
-                    glPopMatrix();
+                    Draw_Road_Node(&road_nodes[i][j]);
                 }
             }
         }
+
+        // FA TESZT
+        /*
+        glPushMatrix();
+            glTranslatef(map_width/2 - 0.5, map_length/2 - 0.5, 0);
+            glRotatef(camera.angle_h * (180/PI) - 180, 0, 0, 1);
+            Draw_Model(&igs_tree_1);
+        glPopMatrix();
+        */
+        // Fá és kamera közti távolságok kiszámítása
+        for(int i = 0; i < tree_limit; i++)
+        {
+            if(trees[i].exsists == true)
+            {
+                trees[i].distance_from_camera = Distance(camera.POV.x, trees[i].pos.x, camera.POV.y, trees[i].pos.y);
+            }
+        }
+        // Fák sorbarendezése kamerától vett távolság alapján
+        for(int i = 0; i < tree_limit - 1; i++)
+        {
+            int min_index = i;
+            for (int j = i+1; j < tree_limit - 1; j++)
+            {
+                if(trees[j].distance_from_camera < trees[min_index].distance_from_camera)
+                {
+                    min_index = j;
+                }
+
+                Scenery_Object tree_swap_placeholder = trees[j];
+                trees[j] = trees[min_index];
+                trees[min_index] = tree_swap_placeholder;
+            }
+        }
+        // Fák kirajzolása
+        glDisable(GL_LIGHTING);
+        for(int i = 0; i < tree_limit; i++)
+        {
+            if(trees[i].exsists == true)
+            {
+                glPushMatrix();
+                    glTranslatef(trees[i].pos.x, trees[i].pos.y, trees[i].pos.z);
+                    if(trees[i].rotate == -1)
+                        glRotatef(camera.angle_h * (180/PI) - 180, 0, 0, 1);
+                    else
+                        glRotatef(trees[i].rotate, 0, 0, 1);
+
+                    Draw_Model(trees[i].model);
+                glPopMatrix();
+            }
+        }
+        glEnable(GL_LIGHTING);
 
         // Rácsháló kirajzolása
         //Draw_Full_Grid(map_width, map_length);
@@ -1075,15 +1284,21 @@ void Render_Scene()
             Draw_Local_Grid(v_cursor);
 
         // Tile kijelölés rajzolása
-        for(i=0; i<map_width; i++)
+        if(debug == true)
         {
-            for(j=0; j<map_length; j++)
+        for(int i = 0; i < building_limit; i++)
+        {
+            if(buildings[i].exists)
             {
-                if(debug == true)
-                {
-                    if(tiles[i][j].occupied != 0 || tiles[i][j].occupied_by_building != NULL || tiles[i][j].occupied_by_node != NULL || tiles[i][j].occupied_by_road_segment != NULL)
+                tiles[buildings[i].entry_point.x][buildings[i].entry_point.y].highlighted = true;
+            }
+        }
+        for(int i=0; i<map_width; i++)
+        {
+            for(int j=0; j<map_length; j++)
+            {
+                if(tiles[i][j].occupied != 0 || tiles[i][j].occupied_by_building != NULL || tiles[i][j].occupied_by_node != NULL || tiles[i][j].occupied_by_road_segment != NULL)
                     tiles[i][j].highlighted = true;
-                }
 
                 if(tiles[i][j].highlighted == true)
                 {
@@ -1091,6 +1306,7 @@ void Render_Scene()
                     tiles[i][j].highlighted = false;
                 }
             }
+        }
         }
 
         // Interface kirajzolása
@@ -1108,9 +1324,6 @@ void Render_Interface()
     // Fények, textúra kikapcsolása
     glDisable(GL_LIGHTING);
     glBindTexture(GL_TEXTURE_2D,0);
-    // Blending bekapcsolása
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // Kirajzolás
     switch(game_mode)
@@ -1204,66 +1417,10 @@ void Render_Interface()
         Render_Bitmap_String(SCREEN_WIDTH - 150, 20, 0, GLUT_BITMAP_HELVETICA_18, text_fps, 1, 1, 0);
     }
 
-    // Fények visszakapcsolása, blending kikapcsolása
+    // Fények visszakapcsolása
     glEnable(GL_LIGHTING);
-    glDisable(GL_BLEND);
     // 3D-s projekció visszaállítása
     Restore_3D_Projection();
-}
-
-void Render_Bitmap_String(int x, int y, int z, void *font, char *string, float r, float g, float b)
-{
-
-    char *c;
-
-    // Szín beállítása
-    glColor3f(r, g, b);
-
-    // Pozícionálás
-    glLoadIdentity();
-    glRasterPos3i(x, y, z);
-
-    // Kiíratás
-    for(c = string; *c != '\0'; c++)
-    {
-        glutBitmapCharacter(font, *c);
-    }
-
-    // Szín visszaállítása
-    glColor3f(1.0f, 1.0f, 1.0f);
-}
-
-void Render_Bitmap_String_With_Backdrop(int x, int y, int z, void *font, char *string, float r, float g, float b, float br, float bg, float bb)
-{
-    // Karakter változó
-    char *c;
-
-    // HÁTTÉR
-    // Háttér színének beállítása
-    glColor4f(br, bg, bb, 0.5f);
-    glLoadIdentity();
-    // Kirajzolás
-    glBegin(GL_QUADS);
-        glVertex3i(x-5, y-20, z);
-        glVertex3i(x-5, y+5, z);
-        glVertex3i(x+205, y+5, z);
-        glVertex3i(x+205, y-20, z);
-    glEnd();
-
-    // FELIRAT
-    // Felirat színének beállítása
-    glColor4f(r, g, b, 1);
-    // Pozícionálás
-    glLoadIdentity();
-    glRasterPos3i(x, y, z);
-    // Kiíratás
-    for(c = string; *c != '\0'; c++)
-    {
-        glutBitmapCharacter(font, *c);
-    }
-
-    // Szín visszaállítása
-    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 }
 
 void Set_2D_Projection()
@@ -1274,7 +1431,6 @@ void Set_2D_Projection()
         gluOrtho2D(0, SCREEN_WIDTH, SCREEN_HEIGHT, 0);
         glMatrixMode(GL_MODELVIEW);
 }
-
 
 void Restore_3D_Projection()
 {
